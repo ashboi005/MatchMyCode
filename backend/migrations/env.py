@@ -1,38 +1,72 @@
-import asyncio
 from logging.config import fileConfig
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy import engine_from_config, pool
 from alembic import context
-from config import DATABASE_URL  # Import database URL
-from models import Base  # Import models
+from dotenv import load_dotenv
+import os
 
-# Load Alembic configuration and logging
+
+load_dotenv()
+
+from config import get_sync_engine
+from models import Base
+
+
 config = context.config
-fileConfig(config.config_file_name)
 
-# Set target metadata so Alembic knows about our models
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
 target_metadata = Base.metadata
 
-
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode (no database connection)."""
+    """Run migrations in 'offline' mode."""
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable is required for migrations")
+    
+    if "postgresql+asyncpg://" in database_url:
+        database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+    
     context.configure(
-        url=DATABASE_URL,
+        url=database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
+def run_migrations_online() -> None:
+    """Run migrations in 'online' mode."""
 
-async def run_migrations_online():
-    """Run migrations in 'online' mode with an actual database connection."""
-    connectable = create_async_engine(DATABASE_URL, poolclass=pool.NullPool)
+    connectable = get_sync_engine()
 
-    async with connectable.begin() as conn:
-        await conn.run_sync(context.configure, connection=conn, target_metadata=target_metadata)
-        await conn.run_sync(context.run_migrations)
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_schemas=True,
+            include_object=include_object
+        )
 
-asyncio.run(run_migrations_online())
+        with context.begin_transaction():
+            context.run_migrations()
+
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Filter function to exclude auth schema from migrations.
+    We don't want Alembic to manage the auth schema since it's managed by Supabase.
+    """
+
+    if hasattr(object, 'schema') and object.schema == 'auth':
+        return False
+    
+    return True
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
