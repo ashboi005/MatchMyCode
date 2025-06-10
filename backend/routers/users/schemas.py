@@ -11,6 +11,9 @@ class UserProfileUpdate(BaseModel):
     date_of_birth: Optional[datetime] = None
     timezone: Optional[str] = None
     language: Optional[str] = None
+    github_username: Optional[str] = None
+    twitter_handle: Optional[str] = None
+    resume_url: Optional[str] = None
 
 class ProfileImageUpload(BaseModel):
     """Response schema for profile image upload"""
@@ -30,6 +33,9 @@ class UserProfileResponse(BaseModel):
     date_of_birth: Optional[datetime] = None
     timezone: Optional[str] = None
     language: Optional[str] = None
+    github_username: Optional[str] = None
+    twitter_handle: Optional[str] = None
+    resume_url: Optional[str] = None
     preferences: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
@@ -50,6 +56,9 @@ class UserProfilePublic(BaseModel):
     date_of_birth: Optional[datetime] = None
     timezone: Optional[str] = None
     language: Optional[str] = None
+    github_username: Optional[str] = None
+    twitter_handle: Optional[str] = None
+    resume_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
