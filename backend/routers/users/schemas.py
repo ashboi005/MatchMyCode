@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class UserProfileUpdate(BaseModel):
@@ -64,3 +64,40 @@ class UserProfilePublic(BaseModel):
 
     class Config:
         from_attributes = True
+
+class FollowUserRequest(BaseModel):
+    """Request to follow/unfollow a user"""
+    user_id: str
+
+class FollowerUser(BaseModel):
+    """User information for follower/following lists"""
+    id: str
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    followed_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class FollowersResponse(BaseModel):
+    """Response for followers list"""
+    followers: List[FollowerUser]
+    total_count: int
+
+class FollowingResponse(BaseModel):
+    """Response for following list"""
+    following: List[FollowerUser]
+    total_count: int
+
+class FollowStatsResponse(BaseModel):
+    """Response for follow statistics"""
+    followers_count: int
+    following_count: int
+    is_following: Optional[bool] = None 
+
+class FollowActionResponse(BaseModel):
+    """Response for follow/unfollow actions"""
+    success: bool
+    message: str
+    is_following: bool
