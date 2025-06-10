@@ -8,7 +8,8 @@ from routers.auth.auth import get_current_user
 from .schemas import (
     UserProfileUpdate,
     UserProfileResponse,
-    ProfileImageUpload
+    ProfileImageUpload,
+    UserProfilePublic
 )
 from .helpers import user_helpers
 from typing import Optional
@@ -39,11 +40,12 @@ async def get_current_user_profile(
         display_name=profile.display_name,
         bio=profile.bio,
         avatar_url=profile.avatar_url,
-        custom_font=profile.custom_font,
-        custom_colors=profile.custom_colors,
         date_of_birth=profile.date_of_birth,
         timezone=profile.timezone,
         language=profile.language,
+        github_username=profile.github_username,
+        twitter_handle=profile.twitter_handle,
+        resume_url=profile.resume_url,
         preferences=profile.preferences,
         created_at=profile.created_at,
         updated_at=profile.updated_at
@@ -80,7 +82,6 @@ async def update_current_user_profile(
         for field, value in update_data.items():
             setattr(profile, field, value)
         
-
         profile.updated_at = datetime.utcnow()
         
         await db.commit()
@@ -99,6 +100,9 @@ async def update_current_user_profile(
             date_of_birth=profile.date_of_birth,
             timezone=profile.timezone,
             language=profile.language,
+            github_username=profile.github_username,
+            twitter_handle=profile.twitter_handle,
+            resume_url=profile.resume_url,
             preferences=profile.preferences,
             created_at=profile.created_at,
             updated_at=profile.updated_at
@@ -143,7 +147,6 @@ async def upload_profile_image(
         if profile.avatar_url:
             await user_helpers.delete_profile_image(profile.avatar_url)
         
-
         image_url = await user_helpers.upload_profile_image(str(profile.id), file)
         
         profile.avatar_url = image_url
@@ -199,4 +202,5 @@ async def delete_profile_image(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete profile image"        )
+            detail="Failed to delete profile image"
+        )
