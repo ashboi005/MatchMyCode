@@ -117,8 +117,7 @@ class Users(Base):
         String(255), server_default=text("''::character varying")
     )
     reauthentication_sent_at: Mapped[Optional[DateTime]] = mapped_column(DateTime(True))
-    
-    # Timestamps
+      # Timestamps
     created_at: Mapped[Optional[DateTime]] = mapped_column(DateTime(True))
     updated_at: Mapped[Optional[DateTime]] = mapped_column(DateTime(True))
     deleted_at: Mapped[Optional[DateTime]] = mapped_column(DateTime(True))
@@ -127,10 +126,7 @@ class Users(Base):
     confirmed_at: Mapped[Optional[DateTime]] = mapped_column(
         DateTime(True),
         Computed("LEAST(email_confirmed_at, phone_confirmed_at)", persisted=True),
-    )    # Social media and portfolio
-    github_username: Mapped[Optional[str]] = mapped_column(String(100), comment="GitHub username")
-    twitter_handle: Mapped[Optional[str]] = mapped_column(String(50), comment="Twitter/X handle")
-    resume_url: Mapped[Optional[str]] = mapped_column(String(500), comment="URL to resume/CV")
+    )
     
     # Relationships
     user_profile: Mapped[Optional["UserProfile"]] = relationship(
@@ -213,10 +209,12 @@ class UserProfile(Base):
     state: Mapped[Optional[str]] = mapped_column(String(100))
     pincode: Mapped[Optional[str]] = mapped_column(String(20))
     country: Mapped[Optional[str]] = mapped_column(String(100))
-    
-    # Professional Profile
+      # Professional Profile
     portfolio_url: Mapped[Optional[str]] = mapped_column(String(500))
     linkedin_url: Mapped[Optional[str]] = mapped_column(String(500))
+    github_username: Mapped[Optional[str]] = mapped_column(String(100), comment="GitHub username")
+    twitter_handle: Mapped[Optional[str]] = mapped_column(String(50), comment="Twitter/X handle")
+    resume_url: Mapped[Optional[str]] = mapped_column(String(500), comment="URL to resume/CV")
     years_experience: Mapped[Optional[int]] = mapped_column(SmallInteger)
     current_role: Mapped[Optional[str]] = mapped_column(String(100))
     tech_stack: Mapped[Optional[List[str]]] = mapped_column(JSONB, comment="List of skills/technologies")
