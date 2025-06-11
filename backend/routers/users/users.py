@@ -212,25 +212,23 @@ async def delete_profile_image(
             detail="Failed to delete profile image"
         )
     
-@router.post("/follow", response_model=FollowActionResponse)
-async def follow_user(
+@router.post("/toggle-follow", response_model=FollowActionResponse)
+async def toggle_follow_user(
     request: FollowUserRequest,
     current_user = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Follow a user"""
+    """Toggle follow/unfollow status for a user"""
     try:
         follower_id = current_user["supabase_user"].id
         following_id = uuid.UUID(request.user_id)
         
-        # Prevent self-following
         if follower_id == following_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="You cannot follow yourself"
             )
         
-        # Check if target user exists
         target_user = await db.execute(
             select(Users).where(Users.id == following_id)
         )
@@ -240,8 +238,7 @@ async def follow_user(
                 detail="User not found"
             )
         
-        # Check if already following
-        existing = await db.execute(
+        existing_result = await db.execute(
             select(UserFollower).where(
                 and_(
                     UserFollower.follower_id == follower_id,
@@ -249,84 +246,44 @@ async def follow_user(
                 )
             )
         )
-        if existing.scalar_one_or_none():
+        existing_follow = existing_result.scalar_one_or_none()
+        
+        if existing_follow:
+            await db.delete(existing_follow)
+            await db.commit()
+            
             return FollowActionResponse(
                 success=True,
-                message="Already following this user",
+                message="Successfully unfollowed user",
+                is_following=False
+            )
+        else:
+            follow_relationship = UserFollower(
+                follower_id=follower_id,
+                following_id=following_id
+            )
+            db.add(follow_relationship)
+            await db.commit()
+            
+            return FollowActionResponse(
+                success=True,
+                message="Successfully followed user",
                 is_following=True
             )
         
-        # Create follow relationship
-        follow_relationship = UserFollower(
-            follower_id=follower_id,
-            following_id=following_id
-        )
-        db.add(follow_relationship)
-        await db.commit()
-        
-        return FollowActionResponse(
-            success=True,
-            message="Successfully followed user",
-            is_following=True
-        )
-        
     except HTTPException:
         raise
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format"
+        )
     except Exception as e:
-        logger.error(f"Error following user: {str(e)}")
+        logger.error(f"Error toggling follow status: {str(e)}")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to follow user"
-        )
-
-
-@router.delete("/unfollow", response_model=FollowActionResponse)
-async def unfollow_user(
-    request: FollowUserRequest,
-    current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Unfollow a user"""
-    try:
-        follower_id = current_user["supabase_user"].id
-        following_id = uuid.UUID(request.user_id)
-        
-        # Find and remove follow relationship
-        result = await db.execute(
-            select(UserFollower).where(
-                and_(
-                    UserFollower.follower_id == follower_id,
-                    UserFollower.following_id == following_id
-                )
-            )
-        )
-        
-        follow_relationship = result.scalar_one_or_none()
-        if not follow_relationship:
-            return FollowActionResponse(
-                success=True,
-                message="Not following this user",
-                is_following=False
-            )
-        
-        await db.delete(follow_relationship)
-        await db.commit()
-        
-        return FollowActionResponse(
-            success=True,
-            message="Successfully unfollowed user",
-            is_following=False
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error unfollowing user: {str(e)}")
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to unfollow user"
+            detail="Failed to toggle follow status"
         )
 
 
