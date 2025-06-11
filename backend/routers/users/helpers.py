@@ -52,7 +52,7 @@ class UserHelpers:
             file_extension = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
             unique_filename = f"profiles/{user_id}/{uuid.uuid4()}{file_extension}"
             
-            bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "blog-media")
+            bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "match-my-code")
             
             try:
                 supabase_client = get_supabase_admin_client()
@@ -100,7 +100,7 @@ class UserHelpers:
         Delete profile image from Supabase Storage
         """
         try:
-            bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "blog-media")
+            bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "match-my-code")
             
             if "/storage/v1/object/public/" in image_url:
                 parts = image_url.split("/storage/v1/object/public/")[1]
