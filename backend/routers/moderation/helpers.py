@@ -102,7 +102,7 @@ class ModerationHelpers:
             file_extension = os.path.splitext(file.filename)[1] if file.filename else '.pdf'
             unique_filename = f"role_documents/{user_id}/{document_type}/{uuid.uuid4()}{file_extension}"
             
-            bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "blog-media")
+            bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "match-my-code")
             
             # Upload to Supabase Storage
             response = self.admin_client.storage.from_(bucket_name).upload(
@@ -144,7 +144,7 @@ class ModerationHelpers:
             bool: True if successfully deleted
         """
         try:
-            bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "blog-media")
+            bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "match-my-code")
             
             if "/storage/v1/object/public/" in document_url:
                 parts = document_url.split("/storage/v1/object/public/")[1]

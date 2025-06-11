@@ -35,7 +35,7 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/auth", tags=["Moderation"])
+router = APIRouter(prefix="/moderation", tags=["Moderation"])
 security = HTTPBearer()
 
 # Helper function to check admin/moderator permissions
