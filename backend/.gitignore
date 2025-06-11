@@ -168,3 +168,22 @@ temp/
 # Media files (if storing locally for development)
 media/
 uploads/
+
+# AWS SAM and deployment files
+.aws-sam/
+samconfig.toml
+template.yaml
+Dockerfile
+lambda_function.py
+.dockerignore
+
+# AWS credentials and config
+.aws/
+*.pem
+*.key
+
+# Terraform (if used later)
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+.terraform/
