@@ -297,13 +297,11 @@ async def get_followers(
 ):
     """Get followers list for a user"""
     try:
-        # Determine target user ID
         if user_id:
             target_user_id = uuid.UUID(user_id)
         else:
             target_user_id = current_user["supabase_user"].id
         
-        # Get followers with user profile info
         result = await db.execute(
             select(
                 UserFollower.follower_id,
