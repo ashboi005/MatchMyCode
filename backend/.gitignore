@@ -184,6 +184,6 @@ lambda_function.py
 
 # Terraform (if used later)
 *.tfstate
-.tfstate.
+*.tfstate.*
 terraform.tfvars
 .terraform/
