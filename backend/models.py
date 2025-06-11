@@ -190,10 +190,17 @@ class UserProfile(Base):
     timezone: Mapped[Optional[str]] = mapped_column(String(50))
     language: Mapped[Optional[str]] = mapped_column(String(10), default="en")
     
-    # Account Type
+    # Account Type and Verification
     account_type: Mapped[Optional[str]] = mapped_column(
         String(50),
-        comment="Account Type: Developer/Company/Recruiter/Organizer"
+        default="USER",
+        comment="Account Type: ADMIN/MODERATOR/USER/ORGANISER/RECRUITER"
+    )
+    is_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="User verification status for verified badge"
     )
     
     # Educational Details
@@ -368,3 +375,146 @@ class ProjectMember(Base):
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="team_members")
     user: Mapped["Users"] = relationship("Users", back_populates="project_memberships")
+
+
+# Role Profile Tables
+
+class ModeratorProfile(Base):
+    """Profile for users requesting MODERATOR role"""
+    __tablename__ = "moderator_profiles"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False
+    )
+      # Moderator specific fields
+    experience_summary: Mapped[str] = mapped_column(Text, nullable=False, comment="Experience summary")
+    moderation_experience_years: Mapped[int] = mapped_column(SmallInteger, nullable=False, comment="Years of moderation experience")
+    
+    # Timestamps
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(True), 
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(True), 
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=text("CURRENT_TIMESTAMP"),
+        nullable=False
+    )
+    
+    # Relationship
+    user: Mapped["Users"] = relationship("Users")
+
+
+class OrganiserProfile(Base):
+    """Profile for users requesting ORGANISER role"""
+    __tablename__ = "organiser_profiles"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False
+    )
+    
+    # Organiser specific fields
+    event_history_pdf: Mapped[str] = mapped_column(String(500), nullable=False, comment="PDF of event history")
+    organization_name: Mapped[str] = mapped_column(String(255), nullable=False, comment="Organization name")
+    years_active: Mapped[int] = mapped_column(SmallInteger, nullable=False, comment="Years actively organizing events")
+    
+    # Timestamps
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(True), 
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(True), 
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=text("CURRENT_TIMESTAMP"),
+        nullable=False
+    )
+    
+    # Relationship
+    user: Mapped["Users"] = relationship("Users")
+
+
+class RecruiterProfile(Base):
+    """Profile for users requesting RECRUITER role"""
+    __tablename__ = "recruiter_profiles"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False
+    )
+    
+    # Recruiter specific fields
+    recruiter_license_pdf: Mapped[str] = mapped_column(String(500), nullable=False, comment="PDF of recruiter license")
+    company_name: Mapped[str] = mapped_column(String(255), nullable=False, comment="Company name")
+    linkedin_url: Mapped[Optional[str]] = mapped_column(String(500), comment="LinkedIn URL (if not in user profile)")
+    
+    # Timestamps
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(True), 
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(True), 
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=text("CURRENT_TIMESTAMP"),
+        nullable=False
+    )
+    
+    # Relationship
+    user: Mapped["Users"] = relationship("Users")
+
+
+class RoleRequest(Base):
+    """Role requests table for tracking role upgrade requests"""
+    __tablename__ = "role_requests"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    
+    # Request details
+    requested_role: Mapped[str] = mapped_column(
+        String(50), 
+        nullable=False,
+        comment="Requested role: MODERATOR/ORGANISER/RECRUITER"
+    )
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="PENDING",
+        nullable=False,
+        comment="Status: PENDING/APPROVED/REJECTED"
+    )
+    
+    # Timestamps
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(True), 
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(True), 
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=text("CURRENT_TIMESTAMP"),
+        nullable=False
+    )
+    
+    # Relationship
+    user: Mapped["Users"] = relationship("Users")

@@ -33,6 +33,8 @@ class UserProfileResponse(BaseModel):
     date_of_birth: Optional[datetime] = None
     timezone: Optional[str] = None
     language: Optional[str] = None
+    account_type: Optional[str] = None
+    is_verified: Optional[bool] = None
     github_username: Optional[str] = None
     twitter_handle: Optional[str] = None
     resume_url: Optional[str] = None
@@ -56,6 +58,8 @@ class UserProfilePublic(BaseModel):
     date_of_birth: Optional[datetime] = None
     timezone: Optional[str] = None
     language: Optional[str] = None
+    account_type: Optional[str] = None
+    is_verified: Optional[bool] = None
     github_username: Optional[str] = None
     twitter_handle: Optional[str] = None
     resume_url: Optional[str] = None
