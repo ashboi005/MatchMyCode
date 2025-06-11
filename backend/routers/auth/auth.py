@@ -73,14 +73,14 @@ async def register(
                     "first_name": user_data.first_name,
                     "last_name": user_data.last_name
                 }
-            }
-        })
+            }        })
         
         if auth_response.user is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Failed to create user account"
             )       
+        
         supabase_user_id = auth_response.user.id
         new_user_profile = UserProfile(
             user_id=supabase_user_id,  
@@ -105,6 +105,8 @@ async def register(
             date_of_birth=new_user_profile.date_of_birth,
             timezone=new_user_profile.timezone,
             language=new_user_profile.language,
+            account_type=new_user_profile.account_type,
+            is_verified=new_user_profile.is_verified,
             preferences=new_user_profile.preferences,
             created_at=new_user_profile.created_at,
             updated_at=new_user_profile.updated_at
@@ -142,14 +144,14 @@ async def login(
     try:
         auth_response = supabase.auth.sign_in_with_password({
             "email": user_data.email,
-            "password": user_data.password
-        })
+            "password": user_data.password        })
         
         if auth_response.user is None or auth_response.session is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password"
             )     
+        
         result = await db.execute(
             select(UserProfile).where(UserProfile.user_id == auth_response.user.id)
         )
@@ -173,6 +175,8 @@ async def login(
             date_of_birth=user_profile.date_of_birth,
             timezone=user_profile.timezone,
             language=user_profile.language,
+            account_type=user_profile.account_type,
+            is_verified=user_profile.is_verified,
             preferences=user_profile.preferences,            
             created_at=user_profile.created_at,
             updated_at=user_profile.updated_at

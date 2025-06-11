@@ -27,6 +27,8 @@ class UserResponse(BaseModel):
     date_of_birth: Optional[datetime] = None
     timezone: Optional[str] = None
     language: Optional[str] = None
+    account_type: Optional[str] = None
+    is_verified: Optional[bool] = None
     preferences: Optional[dict] = None
     created_at: datetime
     updated_at: datetime

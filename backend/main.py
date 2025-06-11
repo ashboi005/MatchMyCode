@@ -7,6 +7,7 @@ import os
 
 from routers.auth.auth import router as auth_router
 from routers.users.users import router as users_router
+from routers.moderation.moderation import router as moderation_router
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
 IS_PRODUCTION = ENVIRONMENT == "prod"
@@ -36,6 +37,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(moderation_router)
 
 @app.get("/docs", include_in_schema=False)
 async def api_documentation(request: Request):

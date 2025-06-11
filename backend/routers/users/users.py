@@ -50,6 +50,8 @@ async def get_current_user_profile(
         date_of_birth=profile.date_of_birth,
         timezone=profile.timezone,
         language=profile.language,
+        account_type=profile.account_type,
+        is_verified=profile.is_verified,
         github_username=profile.github_username,
         twitter_handle=profile.twitter_handle,
         resume_url=profile.resume_url,
@@ -82,8 +84,7 @@ async def update_current_user_profile(
             if existing_user.scalar_one_or_none():
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Username already taken"
-                )
+                    detail="Username already taken"                )
         
         update_data = profile_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
@@ -107,6 +108,8 @@ async def update_current_user_profile(
             date_of_birth=profile.date_of_birth,
             timezone=profile.timezone,
             language=profile.language,
+            account_type=profile.account_type,
+            is_verified=profile.is_verified,
             github_username=profile.github_username,
             twitter_handle=profile.twitter_handle,
             resume_url=profile.resume_url,
