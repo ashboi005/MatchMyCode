@@ -10,7 +10,7 @@ capabilities = "CAPABILITY_IAM"
 image_repositories = []
 
 # Pass parameter values to the stack
-parameter_overrides = "SupabaseUrl=\"https://uuiklbwjvvvrnwhucrcn.supabase.co\" SupabaseAnonKey=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1aWtsYndqdnZ2cm53aHVjcmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0NTU0MTEsImV4cCI6MjA2NTAzMTQxMX0.IoFx34IaxztgNSU_IU_9jRPL6v-D50Pvaa67qRrcnak\" DatabaseUrl=\"postgresql+asyncpg://postgres.uuiklbwjvvvrnwhucrcn:PEj8SGDhY8HyVSaR@aws-0-ap-south-1.pooler.supabase.com:6543/postgres\" JwtSecretKey=\"VgbVFARVPWIpips9pGgXGTtzrvMhzO6aXQUYAq2BkYcIEVVQ1HHxGLKc/0SNxaQaOdHErMzmgtuCEP1LXVgGIA==\" SupabaseStorageBucket=\"match-my-code\""
+parameter_overrides = "SupabaseUrl=\"https://uuiklbwjvvvrnwhucrcn.supabase.co\" SupabaseAnonKey=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1aWtsYndqdnZ2cm53aHVjcmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0NTU0MTEsImV4cCI6MjA2NTAzMTQxMX0.IoFx34IaxztgNSU_IU_9jRPL6v-D50Pvaa67qRrcnak\" SupabaseServiceRoleKey=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1aWtsYndqdnZ2cm53aHVjcmNuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTQ1NTQxMSwiZXhwIjoyMDY1MDMxNDExfQ.vVH9vIZSLWBspfXdg8uSSouQYrslttOZjuf6nAIg2Xc\" DatabaseUrl=\"postgresql+asyncpg://postgres.uuiklbwjvvvrnwhucrcn:PEj8SGDhY8HyVSaR@aws-0-ap-south-1.pooler.supabase.com:6543/postgres\" JwtSecretKey=\"VgbVFARVPWIpips9pGgXGTtzrvMhzO6aXQUYAq2BkYcIEVVQ1HHxGLKc/0SNxaQaOdHErMzmgtuCEP1LXVgGIA==\" SupabaseStorageBucket=\"match-my-code\""
 profile = "ashwath"
 
 [default.deploy.environment]
