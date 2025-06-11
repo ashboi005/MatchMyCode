@@ -63,7 +63,8 @@ async def update_current_user_profile(
         supabase_user = current_user["supabase_user"]
         
         if profile_update.username and profile_update.username != profile.username:
-            result = await db.execute(
+            # Check if username already exists
+            existing_user = await db.execute(
                 select(UserProfile).where(
                     and_(
                         UserProfile.username == profile_update.username,
@@ -71,10 +72,9 @@ async def update_current_user_profile(
                     )
                 )
             )
-            existing_user = result.scalar_one_or_none()
-            if existing_user:
+            if existing_user.scalar_one_or_none():
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=status.HTTP_409_CONFLICT,
                     detail="Username already taken"
                 )
         
@@ -111,11 +111,11 @@ async def update_current_user_profile(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating user profile: {str(e)}")
+        logger.error(f"Error updating user profile: {str(e)}", exc_info=True)
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update profile"
+            detail={"message": "Operation failed", "code": "PROFILE_UPDATE_FAILED"}
         )
 
 @router.post("/me/profile-image", response_model=ProfileImageUpload)
@@ -161,11 +161,11 @@ async def upload_profile_image(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error uploading profile image: {str(e)}")
+        logger.error(f"Error uploading profile image: {str(e)}", exc_info=True)
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload profile image"
+            detail={"message": "Operation failed", "code": "IMAGE_UPLOAD_FAILED"}
         )
 
 @router.delete("/me/profile-image")
@@ -198,9 +198,9 @@ async def delete_profile_image(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting profile image: {str(e)}")
+        logger.error(f"Error deleting profile image: {str(e)}", exc_info=True)
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete profile image"
+            detail={"message": "Operation failed", "code": "IMAGE_DELETE_FAILED"}
         )
