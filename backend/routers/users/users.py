@@ -1,19 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func, exists
 from config import get_db
-from models import UserProfile
+from models import UserProfile, UserFollower, Users
 from routers.auth.auth import get_current_user
 from .schemas import (
     UserProfileUpdate,
     UserProfileResponse,
-    ProfileImageUpload
+    ProfileImageUpload,
+    UserProfilePublic,
+    FollowUserRequest,
+    FollowerUser,
+    FollowersResponse,
+    FollowingResponse,
+    FollowStatsResponse,
+    FollowActionResponse
 )
 from .helpers import user_helpers
 from typing import Optional
 import logging
 from datetime import datetime
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +47,12 @@ async def get_current_user_profile(
         display_name=profile.display_name,
         bio=profile.bio,
         avatar_url=profile.avatar_url,
-        custom_font=profile.custom_font,
-        custom_colors=profile.custom_colors,
         date_of_birth=profile.date_of_birth,
         timezone=profile.timezone,
         language=profile.language,
+        github_username=profile.github_username,
+        twitter_handle=profile.twitter_handle,
+        resume_url=profile.resume_url,
         preferences=profile.preferences,
         created_at=profile.created_at,
         updated_at=profile.updated_at
@@ -80,7 +89,6 @@ async def update_current_user_profile(
         for field, value in update_data.items():
             setattr(profile, field, value)
         
-
         profile.updated_at = datetime.utcnow()
         
         await db.commit()
@@ -99,6 +107,9 @@ async def update_current_user_profile(
             date_of_birth=profile.date_of_birth,
             timezone=profile.timezone,
             language=profile.language,
+            github_username=profile.github_username,
+            twitter_handle=profile.twitter_handle,
+            resume_url=profile.resume_url,
             preferences=profile.preferences,
             created_at=profile.created_at,
             updated_at=profile.updated_at
@@ -143,7 +154,6 @@ async def upload_profile_image(
         if profile.avatar_url:
             await user_helpers.delete_profile_image(profile.avatar_url)
         
-
         image_url = await user_helpers.upload_profile_image(str(profile.id), file)
         
         profile.avatar_url = image_url
@@ -199,4 +209,279 @@ async def delete_profile_image(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete profile image"        )
+            detail="Failed to delete profile image"
+        )
+    
+@router.post("/toggle-follow", response_model=FollowActionResponse)
+async def toggle_follow_user(
+    request: FollowUserRequest,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Toggle follow/unfollow status for a user"""
+    try:
+        follower_id = current_user["supabase_user"].id
+        following_id = uuid.UUID(request.user_id)
+        
+        if follower_id == following_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot follow yourself"
+            )
+        
+        target_user = await db.execute(
+            select(Users).where(Users.id == following_id)
+        )
+        if not target_user.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        existing_result = await db.execute(
+            select(UserFollower).where(
+                and_(
+                    UserFollower.follower_id == follower_id,
+                    UserFollower.following_id == following_id
+                )
+            )
+        )
+        existing_follow = existing_result.scalar_one_or_none()
+        
+        if existing_follow:
+            await db.delete(existing_follow)
+            await db.commit()
+            
+            return FollowActionResponse(
+                success=True,
+                message="Successfully unfollowed user",
+                is_following=False
+            )
+        else:
+            follow_relationship = UserFollower(
+                follower_id=follower_id,
+                following_id=following_id
+            )
+            db.add(follow_relationship)
+            await db.commit()
+            
+            return FollowActionResponse(
+                success=True,
+                message="Successfully followed user",
+                is_following=True
+            )
+        
+    except HTTPException:
+        raise
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format"
+        )
+    except Exception as e:
+        logger.error(f"Error toggling follow status: {str(e)}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to toggle follow status"
+        )
+
+
+@router.get("/followers", response_model=FollowersResponse)
+async def get_followers(
+    user_id: Optional[str] = Query(None, description="User ID to get followers for. If not provided, returns current user's followers"),
+    skip: int = Query(0, ge=0, description="Number of followers to skip"),
+    limit: int = Query(20, ge=1, le=100, description="Number of followers to return"),
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get followers list for a user"""
+    try:
+        if user_id:
+            target_user_id = uuid.UUID(user_id)
+        else:
+            target_user_id = current_user["supabase_user"].id
+        
+        result = await db.execute(
+            select(
+                UserFollower.follower_id,
+                UserFollower.created_at,
+                UserProfile.username,
+                UserProfile.display_name,
+                UserProfile.avatar_url
+            )
+            .join(UserProfile, UserProfile.user_id == UserFollower.follower_id)
+            .where(UserFollower.following_id == target_user_id)
+            .order_by(UserFollower.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        
+        followers = []
+        for row in result.all():
+            # Debug logging
+            logger.info(f"Row data: follower_id={row.follower_id}, username={row.username}, display_name={row.display_name}, avatar_url={row.avatar_url}")
+            
+            followers.append(FollowerUser(
+                id=str(row.follower_id),
+                username=row.username,
+                display_name=row.display_name,
+                avatar_url=row.avatar_url,
+                followed_at=row.created_at
+            ))
+        
+        # Get total count
+        count_result = await db.execute(
+            select(func.count(UserFollower.follower_id))
+            .where(UserFollower.following_id == target_user_id)
+        )
+        total_count = count_result.scalar()
+        
+        return FollowersResponse(
+            followers=followers,
+            total_count=total_count
+        )
+        
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format"
+        )
+    except Exception as e:
+        logger.error(f"Error getting followers: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get followers"
+        )
+
+
+@router.get("/following", response_model=FollowingResponse)
+async def get_following(
+    user_id: Optional[str] = Query(None, description="User ID to get following for. If not provided, returns current user's following"),
+    skip: int = Query(0, ge=0, description="Number of following to skip"),
+    limit: int = Query(20, ge=1, le=100, description="Number of following to return"),
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get following list for a user"""
+    try:
+        # Determine target user ID
+        if user_id:
+            target_user_id = uuid.UUID(user_id)
+        else:
+            target_user_id = current_user["supabase_user"].id
+        
+        # Get following with user profile info
+        result = await db.execute(
+            select(
+                UserFollower.following_id,
+                UserFollower.created_at,
+                UserProfile.username,
+                UserProfile.display_name,
+                UserProfile.avatar_url
+            )
+            .join(UserProfile, UserProfile.user_id == UserFollower.following_id)
+            .where(UserFollower.follower_id == target_user_id)
+            .order_by(UserFollower.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        
+        following = []
+        for row in result.all():
+            # Debug logging
+            logger.info(f"Row data: following_id={row.following_id}, username={row.username}, display_name={row.display_name}, avatar_url={row.avatar_url}")
+            
+            following.append(FollowerUser(
+                id=str(row.following_id),
+                username=row.username,
+                display_name=row.display_name,
+                avatar_url=row.avatar_url,
+                followed_at=row.created_at
+            ))
+        
+        # Get total count
+        count_result = await db.execute(
+            select(func.count(UserFollower.following_id))
+            .where(UserFollower.follower_id == target_user_id)
+        )
+        total_count = count_result.scalar()
+        
+        return FollowingResponse(
+            following=following,
+            total_count=total_count
+        )
+        
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format"
+        )
+    except Exception as e:
+        logger.error(f"Error getting following: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get following"
+        )
+
+
+@router.get("/follow-stats", response_model=FollowStatsResponse)
+async def get_follow_stats(
+    user_id: Optional[str] = Query(None, description="User ID to get stats for. If not provided, returns current user's stats"),
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get follower/following statistics for a user"""
+    try:
+        # Determine target user ID
+        if user_id:
+            target_user_id = uuid.UUID(user_id)
+        else:
+            target_user_id = current_user["supabase_user"].id
+        
+        current_user_id = current_user["supabase_user"].id
+        
+        # Get follower count
+        followers_result = await db.execute(
+            select(func.count(UserFollower.follower_id))
+            .where(UserFollower.following_id == target_user_id)
+        )
+        followers_count = followers_result.scalar()
+        
+        # Get following count
+        following_result = await db.execute(
+            select(func.count(UserFollower.following_id))
+            .where(UserFollower.follower_id == target_user_id)
+        )
+        following_count = following_result.scalar()
+        
+        stats = FollowStatsResponse(
+            followers_count=followers_count,
+            following_count=following_count
+        )
+        
+        # Check if current user follows this user (if different users)
+        if target_user_id != current_user_id:
+            is_following_result = await db.execute(
+                select(exists().where(
+                    and_(
+                        UserFollower.follower_id == current_user_id,
+                        UserFollower.following_id == target_user_id
+                    )
+                ))
+            )
+            stats.is_following = is_following_result.scalar()
+        
+        return stats
+        
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format"
+        )
+    except Exception as e:
+        logger.error(f"Error getting follow stats: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get follow stats"
+        )
