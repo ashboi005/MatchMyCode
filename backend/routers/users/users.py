@@ -5,6 +5,15 @@ from sqlalchemy import select, and_, func, exists
 from config import get_db
 from models import UserProfile, UserFollower, Users
 from routers.auth.auth import get_current_user
+from dependencies.rbac import (
+    require_users_me, 
+    require_users_me_write,
+    require_users_profiles,
+    require_users_follow,
+    require_users_follow_write,
+    require_admin_users,
+    require_admin_or_moderator
+)
 from .schemas import (
     UserProfileUpdate,
     UserProfileResponse,
@@ -31,9 +40,14 @@ security = HTTPBearer()
 
 @router.get("/me", response_model=UserProfileResponse)
 async def get_current_user_profile(
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    _rbac_check = Depends(require_users_me)
 ):
-    """Get current user's profile information"""
+    """
+    Get current user's profile information
+    
+    **Requires user profile read permission**
+    """
     profile = current_user["profile"]
     supabase_user = current_user["supabase_user"]
     
@@ -64,15 +78,19 @@ async def get_current_user_profile(
 async def update_current_user_profile(
     profile_update: UserProfileUpdate,
     current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _rbac_check = Depends(require_users_me_write)
 ):
-    """Update current user's profile information"""
+    """
+    Update current user's profile information
+    
+    **Requires user profile write permission**
+    """
     try:
         profile = current_user["profile"]
         supabase_user = current_user["supabase_user"]
         
         if profile_update.username and profile_update.username != profile.username:
-            # Check if username already exists
             existing_user = await db.execute(
                 select(UserProfile).where(
                     and_(
@@ -322,7 +340,6 @@ async def get_followers(
         
         followers = []
         for row in result.all():
-            # Debug logging
             logger.info(f"Row data: follower_id={row.follower_id}, username={row.username}, display_name={row.display_name}, avatar_url={row.avatar_url}")
             
             followers.append(FollowerUser(
@@ -333,7 +350,6 @@ async def get_followers(
                 followed_at=row.created_at
             ))
         
-        # Get total count
         count_result = await db.execute(
             select(func.count(UserFollower.follower_id))
             .where(UserFollower.following_id == target_user_id)
@@ -368,13 +384,11 @@ async def get_following(
 ):
     """Get following list for a user"""
     try:
-        # Determine target user ID
         if user_id:
             target_user_id = uuid.UUID(user_id)
         else:
             target_user_id = current_user["supabase_user"].id
-        
-        # Get following with user profile info
+
         result = await db.execute(
             select(
                 UserFollower.following_id,
@@ -392,7 +406,6 @@ async def get_following(
         
         following = []
         for row in result.all():
-            # Debug logging
             logger.info(f"Row data: following_id={row.following_id}, username={row.username}, display_name={row.display_name}, avatar_url={row.avatar_url}")
             
             following.append(FollowerUser(
@@ -402,8 +415,7 @@ async def get_following(
                 avatar_url=row.avatar_url,
                 followed_at=row.created_at
             ))
-        
-        # Get total count
+
         count_result = await db.execute(
             select(func.count(UserFollower.following_id))
             .where(UserFollower.follower_id == target_user_id)
@@ -436,22 +448,19 @@ async def get_follow_stats(
 ):
     """Get follower/following statistics for a user"""
     try:
-        # Determine target user ID
         if user_id:
             target_user_id = uuid.UUID(user_id)
         else:
             target_user_id = current_user["supabase_user"].id
         
         current_user_id = current_user["supabase_user"].id
-        
-        # Get follower count
+
         followers_result = await db.execute(
             select(func.count(UserFollower.follower_id))
             .where(UserFollower.following_id == target_user_id)
         )
         followers_count = followers_result.scalar()
-        
-        # Get following count
+
         following_result = await db.execute(
             select(func.count(UserFollower.following_id))
             .where(UserFollower.follower_id == target_user_id)
@@ -463,7 +472,6 @@ async def get_follow_stats(
             following_count=following_count
         )
         
-        # Check if current user follows this user (if different users)
         if target_user_id != current_user_id:
             is_following_result = await db.execute(
                 select(exists().where(

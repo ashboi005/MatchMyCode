@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -27,6 +27,7 @@ security = HTTPBearer()
 supabase = get_supabase_client()
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
@@ -45,10 +46,14 @@ async def get_current_user(
             detail="User profile not found"
         )
     
-    return {
+    current_user = {
         "supabase_user": supabase_user,
         "profile": user_profile
     }
+
+    request.state.current_user = current_user
+    
+    return current_user
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(

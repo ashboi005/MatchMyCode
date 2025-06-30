@@ -13,6 +13,18 @@ from models import (
     RecruiterProfile
 )
 from routers.auth.auth import get_current_user
+from dependencies.rbac import (
+    require_admin_or_moderator,
+    require_admin_only,
+    require_moderation_read,
+    require_moderation_write,
+    require_moderation_role_requests,
+    require_moderation_role_requests_write,
+    require_moderation_role_requests_update,
+    require_moderation_user_verification,
+    require_moderation_user_verification_write,
+    require_admin_users_delete
+)
 from .schemas import (
     RoleRequestCreate,
     RoleRequestResponse,
@@ -38,49 +50,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/moderation", tags=["Moderation"])
 security = HTTPBearer()
 
-# Helper function to check admin/moderator permissions
-async def check_admin_or_moderator(current_user):
-    """Check if user is admin or moderator"""
-    user_role = current_user["profile"].account_type
-    if user_role not in ["ADMIN", "MODERATOR"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Admin or Moderator role required."
-        )
-    return user_role
-
-async def check_admin_only(current_user):
-    """Check if user is admin"""
-    user_role = current_user["profile"].account_type
-    if user_role != "ADMIN":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Admin role required."
-        )
-    return user_role
-
 # 1. User Deletion Route
 @router.delete("/user/{user_id}", response_model=UserDeletionResponse)
 async def delete_user(
     user_id: str,
     current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _rbac_check = Depends(require_admin_users_delete)
 ):
     """
     Delete a user (Admin and Moderator access)
+    
+    **Requires admin user delete permission**
     
     Access Control:
     - ADMIN can delete any user
     - MODERATOR can delete USER only (not ADMIN, ORGANISER, RECRUITER)
     """
     try:
-        # Check permissions
-        requester_role = await check_admin_or_moderator(current_user)
-        
-        # Get target user
+        requester_role = current_user["profile"].account_type
+
         target_user_uuid = uuid.UUID(user_id)
-        
-        # Get target user profile to check their role
+
         result = await db.execute(
             select(UserProfile, Users)
             .join(Users, UserProfile.user_id == Users.id)
@@ -97,21 +88,18 @@ async def delete_user(
         target_profile, target_user = user_data
         target_role = target_profile.account_type or "USER"
         
-        # Check if requester can delete this user
         if not moderation_helpers.can_delete_user(requester_role, target_role):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Cannot delete user with role {target_role}"
             )
-        
-        # Prevent self-deletion
+
         if target_user_uuid == current_user["supabase_user"].id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot delete your own account"
             )
-        
-        # Delete from Supabase Auth (this will cascade to our tables)
+
         try:
             admin_client = moderation_helpers.admin_client
             admin_client.auth.admin.delete_user(str(target_user_uuid))
@@ -142,23 +130,21 @@ async def delete_user(
             detail="Failed to delete user"
         )
 
-# 2. User Verification Route
 @router.patch("/verify/{user_id}", response_model=VerificationResponse)
 async def toggle_user_verification(
     user_id: str,
     current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _rbac_check = Depends(require_moderation_user_verification_write)
 ):
     """
     Toggle user verification status (Admin and Moderator access)
     
+    **Requires moderation user verification write permission**
+    
     Used for showing verified badge (like blue tick)
     """
     try:
-        # Check permissions
-        await check_admin_or_moderator(current_user)
-        
-        # Get target user
         target_user_uuid = uuid.UUID(user_id)
         
         result = await db.execute(
@@ -172,7 +158,6 @@ async def toggle_user_verification(
                 detail="User not found"
             )
         
-        # Toggle verification status
         target_profile.is_verified = not target_profile.is_verified
         target_profile.updated_at = datetime.utcnow()
         
@@ -201,7 +186,6 @@ async def toggle_user_verification(
             detail="Failed to update verification status"
         )
 
-# 3. Get Role Form Requirements
 @router.get("/role-requirements/{role}", response_model=RoleFormRequirementsResponse)
 async def get_role_requirements(
     role: str,
@@ -235,7 +219,6 @@ async def get_role_requirements(
         description=requirements.get("description", f"Requirements for {role} role")
     )
 
-# 4. Upload Role Document
 @router.post("/upload-role-document", response_model=FileUploadResponse)
 async def upload_role_document(
     document_type: str = Form(..., description="Type of document: license, event_history"),
@@ -273,7 +256,6 @@ async def upload_role_document(
             detail="Failed to upload document"
         )
 
-# 5. Role Request Route
 @router.post("/request-role", response_model=RoleRequestResponse)
 async def request_role(
     role_request: RoleRequestCreate,
@@ -290,7 +272,6 @@ async def request_role(
         user_id = current_user["supabase_user"].id
         user_profile = current_user["profile"]
         
-        # Validate role
         valid_roles = ["MODERATOR", "ORGANISER", "RECRUITER"]
         desired_role = role_request.desired_role.upper()
         
@@ -299,8 +280,7 @@ async def request_role(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid role. Valid roles: {', '.join(valid_roles)}"
             )
-        
-        # Check if user already has a pending request for this role
+
         existing_request = await db.execute(
             select(RoleRequest).where(
                 and_(
@@ -316,7 +296,6 @@ async def request_role(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"You already have a pending request for {desired_role} role"
             )
-          # Create role-specific profile based on role type
         profile_id = None
         
         if desired_role == "MODERATOR":
@@ -344,8 +323,7 @@ async def request_role(
             
         elif desired_role == "RECRUITER":
             profile_data = RecruiterProfileCreate(**role_request.details)
-            
-            # Check if LinkedIn URL is provided, otherwise get from user profile
+
             linkedin_url = profile_data.linkedin_url
             if not linkedin_url:
                 linkedin_url = await moderation_helpers.get_user_linkedin_url(db, user_id)
@@ -365,7 +343,6 @@ async def request_role(
             await db.flush()
             profile_id = recruiter_profile.id
         
-        # Create role request
         role_request_obj = RoleRequest(
             user_id=user_id,
             requested_role=desired_role,
@@ -400,7 +377,6 @@ async def request_role(
             detail="Failed to create role request"
         )
 
-# 6. Get Role Requests (Admin only)
 @router.get("/role-requests", response_model=RoleRequestListResponse)
 async def get_role_requests(
     status_filter: Optional[str] = Query(None, description="Filter by status: PENDING, APPROVED, REJECTED"),
@@ -408,30 +384,27 @@ async def get_role_requests(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _rbac_check = Depends(require_admin_only)
 ):
     """
     Get role requests with user and profile data (Admin only)
-    """
-    # Check admin permissions
-    await check_admin_only(current_user)
     
+    **Requires admin role**
+    """
     try:
-        # Build query
         query = select(RoleRequest, UserProfile, Users.email).join(
             UserProfile, RoleRequest.user_id == UserProfile.user_id
         ).join(
             Users, RoleRequest.user_id == Users.id
         )
-        
-        # Apply filters
+
         if status_filter:
             query = query.where(RoleRequest.status == status_filter.upper())
         
         if role_filter:
             query = query.where(RoleRequest.requested_role == role_filter.upper())
         
-        # Get total count
         count_query = select(func.count(RoleRequest.id))
         if status_filter:
             count_query = count_query.where(RoleRequest.status == status_filter.upper())
@@ -441,16 +414,14 @@ async def get_role_requests(
         total_result = await db.execute(count_query)
         total_count = total_result.scalar()
         
-        # Apply pagination and ordering
         query = query.order_by(RoleRequest.created_at.desc())
         query = query.offset((page - 1) * limit).limit(limit)
         
         result = await db.execute(query)
         requests_data = result.all()
-          # Build response with profile data
+
         requests = []
         for role_request, user_profile, email in requests_data:
-            # Get role-specific profile data
             profile_data = None
             
             if role_request.requested_role == "MODERATOR":
@@ -519,33 +490,30 @@ async def get_role_requests(
             detail="Failed to get role requests"
         )
 
-# 7. Update Role Request Status (Admin only)
 @router.patch("/role-requests/{request_id}", response_model=RoleRequestResponse)
 async def update_role_request_status(
     request_id: str,
     update_data: RoleRequestUpdate,
     current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _rbac_check = Depends(require_admin_only)
 ):
     """
     Approve or reject role request (Admin only)
     
+    **Requires admin role**
+    
     If APPROVED: Updates user's account_type
     If REJECTED: No change to user's role
     """
-    # Check admin permissions
-    await check_admin_only(current_user)
-    
     try:
-        # Validate status
         valid_statuses = ["APPROVED", "REJECTED"]
         if update_data.status.upper() not in valid_statuses:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid status. Valid statuses: {', '.join(valid_statuses)}"
             )
-        
-        # Get role request
+
         request_uuid = uuid.UUID(request_id)
         
         result = await db.execute(
@@ -562,19 +530,16 @@ async def update_role_request_status(
             )
         
         role_request, user_profile = request_data
-        
-        # Check if request is still pending
+
         if role_request.status != "PENDING":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Request already {role_request.status.lower()}"
             )
         
-        # Update request status
         role_request.status = update_data.status.upper()
         role_request.updated_at = datetime.utcnow()
         
-        # If approved, update user's account_type
         if update_data.status.upper() == "APPROVED":
             user_profile.account_type = role_request.requested_role
             user_profile.updated_at = datetime.utcnow()
@@ -611,27 +576,3 @@ async def update_role_request_status(
             detail="Failed to update role request"
         )
 
-# 8. Check Permissions (Utility endpoint)
-@router.get("/check-permissions", response_model=PermissionCheckResponse)
-async def check_permissions(
-    action: str = Query(..., description="Action to check: delete, verify, approve_role_request"),
-    target_role: Optional[str] = Query(None, description="Target user role (for delete action)"),
-    current_user = Depends(get_current_user)
-):
-    """
-    Check if current user has permission for specific action
-    """
-    user_role = current_user["profile"].account_type or "USER"
-    
-    has_permission = moderation_helpers.check_role_permissions(
-        user_role=user_role,
-        action=action,
-        target_role=target_role
-    )
-    
-    return PermissionCheckResponse(
-        has_permission=has_permission,
-        user_role=user_role,
-        action=action,
-        target_role=target_role
-    )
