@@ -94,7 +94,7 @@ async def create_project(
     **Requires project write permission**
     """
     try:
-        user_id = current_user["profile"].user_id
+        user_id = current_user["user_id"]
         
         new_project = Project(
             owner_id=user_id,
@@ -142,8 +142,8 @@ async def update_project(
     """
     try:
         project_uuid = uuid.UUID(project_id)
-        user_id = current_user["profile"].user_id
-        user_role = current_user["profile"].account_type
+        user_id = current_user["user_id"]
+        user_role = current_user["role"]
         
         result = await db.execute(
             select(Project).where(Project.id == project_uuid)
@@ -211,8 +211,8 @@ async def delete_project(
     """
     try:
         project_uuid = uuid.UUID(project_id)
-        user_id = current_user["profile"].user_id
-        user_role = current_user["profile"].account_type
+        user_id = current_user["user_id"]
+        user_role = current_user["role"]
         
         result = await db.execute(
             select(Project).where(Project.id == project_uuid)

@@ -232,15 +232,8 @@ def require_permission(resource: str = None, permission: str = None):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Authentication required"
                 )
-            
-            # Extract user role from the current_user object
-            user_role = 'USER'  # Default role
-            if isinstance(current_user, dict):
-                profile = current_user.get('profile')
-                if profile:
-                    user_role = getattr(profile, 'account_type', 'USER')
-            else:
-                user_role = getattr(current_user, 'account_type', 'USER')
+
+            user_role = current_user.get('role', 'USER') 
             
             resource_name = resource or normalize_path(str(request.url.path))
             required_permission = permission or translate_method_to_action(request.method)
@@ -277,14 +270,8 @@ def require_role(*allowed_roles):
     def check_role(current_user = Depends(get_current_user)):
         """Role checking dependency function"""
         try:
-            # Extract user role from the current_user object
-            user_role = 'USER'  # Default role
-            if isinstance(current_user, dict):
-                profile = current_user.get('profile')
-                if profile:
-                    user_role = getattr(profile, 'account_type', 'USER')
-            else:
-                user_role = getattr(current_user, 'account_type', 'USER')
+            # Extract user role from the new current_user structure
+            user_role = current_user.get('role', 'USER')  # default fallback
             
             if user_role not in allowed_roles:
                 raise HTTPException(

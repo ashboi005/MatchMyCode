@@ -68,7 +68,7 @@ async def delete_user(
     - MODERATOR can delete USER only (not ADMIN, ORGANISER, RECRUITER)
     """
     try:
-        requester_role = current_user["profile"].account_type
+        requester_role = current_user["role"]
 
         target_user_uuid = uuid.UUID(user_id)
 
@@ -269,8 +269,18 @@ async def request_role(
     Users can request role upgrade with required documents
     """
     try:
-        user_id = current_user["supabase_user"].id
-        user_profile = current_user["profile"]
+        user_id = current_user["user_id"]
+
+        result = await db.execute(
+            select(UserProfile).where(UserProfile.user_id == user_id)
+        )
+        user_profile = result.scalar_one_or_none()
+        
+        if not user_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
         
         valid_roles = ["MODERATOR", "ORGANISER", "RECRUITER"]
         desired_role = role_request.desired_role.upper()

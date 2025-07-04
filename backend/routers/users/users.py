@@ -41,21 +41,31 @@ security = HTTPBearer()
 @router.get("/me", response_model=UserProfileResponse)
 async def get_current_user_profile(
     current_user = Depends(get_current_user),
-    _rbac_check = Depends(require_users_me)
+    _rbac_check = Depends(require_users_me),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get current user's profile information
     
     **Requires user profile read permission**
     """
-    profile = current_user["profile"]
-    supabase_user = current_user["supabase_user"]
+    # Query database for full profile information
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.user_id == current_user["user_id"])
+    )
+    profile = result.scalar_one_or_none()
+    
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User profile not found"
+        )
     
     return UserProfileResponse(
         id=str(profile.id),
         user_id=str(profile.user_id),
         username=profile.username,
-        email=supabase_user.email,  
+        email=current_user["email"],  
         first_name=profile.first_name,
         last_name=profile.last_name,
         display_name=profile.display_name,
@@ -87,8 +97,17 @@ async def update_current_user_profile(
     **Requires user profile write permission**
     """
     try:
-        profile = current_user["profile"]
-        supabase_user = current_user["supabase_user"]
+        # Query database for full profile information
+        result = await db.execute(
+            select(UserProfile).where(UserProfile.user_id == current_user["user_id"])
+        )
+        profile = result.scalar_one_or_none()
+        
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
         
         if profile_update.username and profile_update.username != profile.username:
             existing_user = await db.execute(
@@ -117,7 +136,7 @@ async def update_current_user_profile(
             id=str(profile.id),
             user_id=str(profile.user_id),
             username=profile.username,
-            email=supabase_user.email,  
+            email=current_user["email"],  
             first_name=profile.first_name,
             last_name=profile.last_name,
             display_name=profile.display_name,
@@ -164,7 +183,17 @@ async def upload_profile_image(
     Maximum file size: 5MB
     """
     try:
-        profile = current_user["profile"]
+        # Query database for full profile information
+        result = await db.execute(
+            select(UserProfile).where(UserProfile.user_id == current_user["user_id"])
+        )
+        profile = result.scalar_one_or_none()
+        
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
         
         if not file.filename:
             raise HTTPException(
@@ -203,7 +232,16 @@ async def delete_profile_image(
 ):
     """Delete current user's profile image"""
     try:
-        profile = current_user["profile"]
+        result = await db.execute(
+            select(UserProfile).where(UserProfile.user_id == current_user["user_id"])
+        )
+        profile = result.scalar_one_or_none()
+        
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
         
         if not profile.avatar_url:
             raise HTTPException(
