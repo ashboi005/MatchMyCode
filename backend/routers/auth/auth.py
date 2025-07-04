@@ -31,7 +31,7 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get current user from JWT token (optimized)"""
+    """Get current user from JWT token"""
     token = credentials.credentials
     supabase_user = auth_helpers.verify_token(token) 
     
@@ -58,10 +58,10 @@ async def get_current_user(
         current_user = {
             "user_id": supabase_user.id,
             "email": supabase_user.email,
-            "role": user_profile.account_type,  
+            "role": user_profile.role,  
             "profile": user_profile
         }
-        logger.info(f"User {supabase_user.id} authenticated via DB role: {user_profile.account_type}")
+        logger.info(f"User {supabase_user.id} authenticated via DB role: {user_profile.role}")
     
     request.state.current_user = current_user
     return current_user
@@ -104,7 +104,7 @@ async def register(
             username=user_data.username,
             first_name=user_data.first_name,
             last_name=user_data.last_name,
-            account_type="USER"  
+            role="USER"  
         )
         
         db.add(new_user_profile)
@@ -123,7 +123,7 @@ async def register(
             date_of_birth=new_user_profile.date_of_birth,
             timezone=new_user_profile.timezone,
             language=new_user_profile.language,
-            account_type=new_user_profile.account_type,
+            role=new_user_profile.role,
             is_verified=new_user_profile.is_verified,
             preferences=new_user_profile.preferences,
             created_at=new_user_profile.created_at,
@@ -193,7 +193,7 @@ async def login(
             date_of_birth=user_profile.date_of_birth,
             timezone=user_profile.timezone,
             language=user_profile.language,
-            account_type=user_profile.account_type,
+            role=user_profile.role,
             is_verified=user_profile.is_verified,
             preferences=user_profile.preferences,            
             created_at=user_profile.created_at,

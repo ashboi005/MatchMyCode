@@ -45,6 +45,11 @@ class RoleRequestResponse(BaseModel):
     
     # Role-specific profile data
     profile_data: Optional[Dict[str, Any]] = None
+    
+    # Additional fields for status updates
+    message: Optional[str] = None
+    metadata_updated: Optional[bool] = None
+    note: Optional[str] = None
 
     class Config:
         from_attributes = True

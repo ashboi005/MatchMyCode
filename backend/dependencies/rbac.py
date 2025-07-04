@@ -270,8 +270,7 @@ def require_role(*allowed_roles):
     def check_role(current_user = Depends(get_current_user)):
         """Role checking dependency function"""
         try:
-            # Extract user role from the new current_user structure
-            user_role = current_user.get('role', 'USER')  # default fallback
+            user_role = current_user.get('role', 'USER')  
             
             if user_role not in allowed_roles:
                 raise HTTPException(

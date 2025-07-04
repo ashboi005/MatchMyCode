@@ -190,11 +190,10 @@ class UserProfile(Base):
     timezone: Mapped[Optional[str]] = mapped_column(String(50))
     language: Mapped[Optional[str]] = mapped_column(String(10), default="en")
     
-    # Account Type and Verification
-    account_type: Mapped[Optional[str]] = mapped_column(
+    role: Mapped[Optional[str]] = mapped_column(
         String(50),
         default="USER",
-        comment="Account Type: ADMIN/MODERATOR/USER/ORGANISER/RECRUITER"
+        comment="User Role: ADMIN/MODERATOR/USER/ORGANISER/RECRUITER"
     )
     is_verified: Mapped[bool] = mapped_column(
         Boolean,

@@ -50,7 +50,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/moderation", tags=["Moderation"])
 security = HTTPBearer()
 
-# 1. User Deletion Route
 @router.delete("/user/{user_id}", response_model=UserDeletionResponse)
 async def delete_user(
     user_id: str,
@@ -86,7 +85,7 @@ async def delete_user(
             )
         
         target_profile, target_user = user_data
-        target_role = target_profile.account_type or "USER"
+        target_role = target_profile.role or "USER"
         
         if not moderation_helpers.can_delete_user(requester_role, target_role):
             raise HTTPException(
@@ -513,7 +512,7 @@ async def update_role_request_status(
     
     **Requires admin role**
     
-    If APPROVED: Updates user's account_type
+    If APPROVED: Updates user's role
     If REJECTED: No change to user's role
     """
     try:
@@ -550,15 +549,37 @@ async def update_role_request_status(
         role_request.status = update_data.status.upper()
         role_request.updated_at = datetime.utcnow()
         
+        metadata_updated = False
+        old_role = user_profile.role or "USER"
+        
         if update_data.status.upper() == "APPROVED":
-            user_profile.account_type = role_request.requested_role
+            user_profile.role = role_request.requested_role
             user_profile.updated_at = datetime.utcnow()
+            
+            try:
+                admin_client = moderation_helpers.admin_client
+                admin_client.auth.admin.update_user_by_id(
+                    str(role_request.user_id),
+                    {
+                        "user_metadata": {
+                            "role": role_request.requested_role,
+                            "username": user_profile.username,
+                            "first_name": user_profile.first_name,
+                            "last_name": user_profile.last_name,
+                        }
+                    }
+                )
+                metadata_updated = True
+                logger.info(f"Updated Supabase user metadata for {role_request.user_id} with role: {role_request.requested_role}")
+            except Exception as supabase_error:
+                logger.error(f"Failed to update Supabase metadata for user {role_request.user_id}: {str(supabase_error)}")
+
         
         await db.commit()
         await db.refresh(role_request)
         await db.refresh(user_profile)
         
-        return RoleRequestResponse(
+        response_data = RoleRequestResponse(
             id=str(role_request.id),
             user_id=str(role_request.user_id),
             requested_role=role_request.requested_role,
@@ -570,6 +591,15 @@ async def update_role_request_status(
             last_name=user_profile.last_name,
             display_name=user_profile.display_name
         )
+        
+        if update_data.status.upper() == "APPROVED":
+            response_data.message = f"Role request approved. User role updated from {old_role} to {role_request.requested_role}"
+            response_data.metadata_updated = metadata_updated
+            response_data.note = "Role will be available in JWT tokens after next login" if metadata_updated else "Role updated in database only. User may need to re-login to see changes in JWT tokens."
+        else:
+            response_data.message = f"Role request {update_data.status.lower()}"
+        
+        return response_data
         
     except ValueError:
         raise HTTPException(

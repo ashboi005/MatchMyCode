@@ -49,7 +49,6 @@ async def get_current_user_profile(
     
     **Requires user profile read permission**
     """
-    # Query database for full profile information
     result = await db.execute(
         select(UserProfile).where(UserProfile.user_id == current_user["user_id"])
     )
@@ -74,7 +73,7 @@ async def get_current_user_profile(
         date_of_birth=profile.date_of_birth,
         timezone=profile.timezone,
         language=profile.language,
-        account_type=profile.account_type,
+        role=profile.role,
         is_verified=profile.is_verified,
         github_username=profile.github_username,
         twitter_handle=profile.twitter_handle,
@@ -97,7 +96,6 @@ async def update_current_user_profile(
     **Requires user profile write permission**
     """
     try:
-        # Query database for full profile information
         result = await db.execute(
             select(UserProfile).where(UserProfile.user_id == current_user["user_id"])
         )
@@ -145,7 +143,7 @@ async def update_current_user_profile(
             date_of_birth=profile.date_of_birth,
             timezone=profile.timezone,
             language=profile.language,
-            account_type=profile.account_type,
+            role=profile.role,
             is_verified=profile.is_verified,
             github_username=profile.github_username,
             twitter_handle=profile.twitter_handle,
@@ -183,7 +181,6 @@ async def upload_profile_image(
     Maximum file size: 5MB
     """
     try:
-        # Query database for full profile information
         result = await db.execute(
             select(UserProfile).where(UserProfile.user_id == current_user["user_id"])
         )
